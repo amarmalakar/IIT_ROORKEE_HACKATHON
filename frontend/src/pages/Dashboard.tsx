@@ -24,7 +24,7 @@ type Tab = "code" | "tests" | "explanation";
 export default function Dashboard() {
   const [dark, setDark] = useState(true);
   const [request, setRequest] = useState(
-    "Write a Python function to find two numbers in an array that sum to a target. Include optimal solution."
+    "Write a Python function to check if a string is a palindrome."
   );
   const [persona, setPersona] = useState("");
   const [language, setLanguage] = useState("");
@@ -82,7 +82,7 @@ export default function Dashboard() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <aside className="w-72 border-r border-gray-800 p-4 flex flex-col gap-4 overflow-y-auto">
+        <aside className="w-80 border-r border-gray-800 p-4 flex flex-col gap-3 overflow-hidden min-h-0">
           <Selector label="Persona" value={persona} options={personas} onChange={setPersona} />
           <Selector label="Language" value={language} options={languages} onChange={setLanguage} />
           <Selector
@@ -95,12 +95,12 @@ export default function Dashboard() {
             onChange={setModel}
           />
 
-          <div className="flex flex-col gap-1 flex-1">
+          <div className="flex flex-col gap-1 shrink-0">
             <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">Request</label>
             <textarea
               value={request}
               onChange={(e) => setRequest(e.target.value)}
-              rows={5}
+              rows={4}
               className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 resize-none focus:outline-none focus:ring-2 focus:ring-forge-500"
             />
           </div>
@@ -108,7 +108,7 @@ export default function Dashboard() {
           <button
             onClick={handleGenerate}
             disabled={loading || !request.trim()}
-            className="flex items-center justify-center gap-2 bg-forge-600 hover:bg-forge-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg py-2.5 text-sm font-medium transition-colors"
+            className="flex items-center justify-center gap-2 bg-forge-600 hover:bg-forge-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg py-2.5 text-sm font-medium transition-colors shrink-0"
           >
             {loading ? (
               <><Loader2 size={16} className="animate-spin" /> Running...</>
@@ -117,9 +117,11 @@ export default function Dashboard() {
             )}
           </button>
 
-          {error && <p className="text-xs text-red-400">{error}</p>}
+          {error && <p className="text-xs text-red-400 shrink-0 break-words">{error}</p>}
 
-          <AgentTimeline events={timeline} activeAgent={activeAgent} streaming={loading} />
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <AgentTimeline events={timeline} activeAgent={activeAgent} streaming={loading} />
+          </div>
         </aside>
 
         {/* Main content */}

@@ -1,6 +1,6 @@
 """Tests for LangGraph workflow routing."""
 
-from backend.graph.workflow import route_by_intent, build_workflow
+from backend.graph.workflow import route_by_intent, route_after_evaluation, build_workflow
 from backend.models.state import create_initial_state
 
 
@@ -22,10 +22,10 @@ def test_route_by_intent_review():
     assert route_by_intent(state) == "code_review"
 
 
-def test_route_by_intent_document_goes_to_explanation():
+def test_route_by_intent_document_goes_to_documentation():
     state = create_initial_state("document this")
     state["router_output"] = {"intent": "document"}
-    assert route_by_intent(state) == "explanation"
+    assert route_by_intent(state) == "documentation"
 
 
 def test_build_workflow_compiles():

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, timezone
 from typing import AsyncIterator, Protocol
 
@@ -11,7 +12,10 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from backend.config.settings import AGENT_MODEL_ROUTING, SUPPORTED_MODELS, get_settings
 from backend.prompts.loader import get_prompt_loader
+from backend.services.rate_limiter import backoff_on_rate_limit, is_rate_limit_error, throttle_before_request
 from backend.utils.helpers import truncate_text
+
+logger = logging.getLogger("codeforge.llm")
 
 
 class LLMProvider(Protocol):
@@ -40,7 +44,8 @@ class GroqProvider:
         settings = get_settings()
         self.api_key = api_key or settings.groq_api_key
         self.default_model = settings.default_model
-        self.max_retries = settings.llm_max_retries
+        # Use 0 here — we handle retries in invoke_with_retry to avoid double backoff
+        self.max_retries = 0
         self._clients: dict[str, ChatGroq] = {}
 
     def _get_client(self, model: str, temperature: float) -> ChatGroq:
@@ -50,12 +55,13 @@ class GroqProvider:
                 api_key=self.api_key,
                 model=model,
                 temperature=temperature,
-                max_retries=self.max_retries,
+                max_retries=0,
             )
         return self._clients[key]
 
     async def invoke(self, messages: list[dict[str, str]], model: str = "", temperature: float = 0.2) -> str:
         model = model or self.default_model
+        await throttle_before_request()
         client = self._get_client(model, temperature)
         lc_messages = _to_lc_messages(messages)
         response = await asyncio.to_thread(client.invoke, lc_messages)
@@ -65,6 +71,7 @@ class GroqProvider:
         self, messages: list[dict[str, str]], model: str = "", temperature: float = 0.2
     ) -> AsyncIterator[str]:
         model = model or self.default_model
+        await throttle_before_request()
         client = self._get_client(model, temperature)
         lc_messages = _to_lc_messages(messages)
         async for chunk in client.astream(lc_messages):
@@ -78,6 +85,7 @@ class LLMService:
     def __init__(self, provider: GroqProvider | None = None) -> None:
         self.provider = provider or GroqProvider()
         self.prompt_loader = get_prompt_loader()
+        self._max_retries = get_settings().llm_max_retries
 
     def get_agent_config(self, agent_name: str, model_override: str = "") -> dict[str, object]:
         routing = AGENT_MODEL_ROUTING.get(agent_name, {})
@@ -132,7 +140,7 @@ class LLMService:
     ) -> str:
         last_error = ""
         response = ""
-        for attempt in range(self.provider.max_retries):
+        for attempt in range(self._max_retries):
             try:
                 if attempt == 0:
                     response = await self.invoke_agent(
@@ -155,7 +163,10 @@ class LLMService:
                 return truncate_text(response, 50000)
             except Exception as exc:
                 last_error = str(exc)
-                if attempt == self.provider.max_retries - 1:
+                if is_rate_limit_error(exc) and attempt < self._max_retries - 1:
+                    await backoff_on_rate_limit(attempt)
+                    continue
+                if attempt == self._max_retries - 1:
                     raise
         return response
 

@@ -22,10 +22,12 @@ class Settings(BaseSettings):
     )
 
     groq_api_key: str = ""
-    default_model: str = "llama-3.3-70b-versatile"
+    default_model: str = "llama-3.1-8b-instant"
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     llm_timeout_seconds: int = 60
-    llm_max_retries: int = 2
+    llm_max_retries: int = 3
+    llm_request_delay_ms: int = 1200
+    llm_rate_limit_backoff_seconds: float = 3.0
     backend_host: str = "0.0.0.0"
     backend_port: int = 8000
     cors_origins: str = (
@@ -55,8 +57,8 @@ AGENT_MODEL_ROUTING: dict[str, dict[str, object]] = {
     "requirement_extraction": {"model": "llama-3.1-8b-instant", "temperature": 0.1},
     "persona": {"model": "llama-3.1-8b-instant", "temperature": 0.1},
     "context_retrieval": {"model": "llama-3.1-8b-instant", "temperature": 0.1},
-    "language_specialist": {"model": "llama-3.3-70b-versatile", "temperature": 0.2},
-    "optimization": {"model": "llama-3.3-70b-versatile", "temperature": 0.2},
+    "language_specialist": {"model": "llama-3.1-8b-instant", "temperature": 0.2},
+    "optimization": {"model": "llama-3.1-8b-instant", "temperature": 0.2},
     "code_review": {"model": "llama-3.1-8b-instant", "temperature": 0.1},
     "security_review": {"model": "llama-3.1-8b-instant", "temperature": 0.1},
     "unit_test_generator": {"model": "llama-3.1-8b-instant", "temperature": 0.2},
@@ -92,21 +94,35 @@ LANGUAGES: list[dict[str, str]] = [
 
 WORKFLOW_NODES: list[dict[str, object]] = [
     {"id": "router", "label": "Router", "position": {"x": 0, "y": 0}},
-    {"id": "requirement_extraction", "label": "Requirements", "position": {"x": 250, "y": 0}},
-    {"id": "persona", "label": "Persona", "position": {"x": 500, "y": 0}},
-    {"id": "language_specialist", "label": "Code Gen", "position": {"x": 750, "y": 0}},
-    {"id": "code_review", "label": "Review", "position": {"x": 1000, "y": 0}},
-    {"id": "execution", "label": "Execution", "position": {"x": 1250, "y": 0}},
-    {"id": "explanation", "label": "Explanation", "position": {"x": 1500, "y": 0}},
+    {"id": "requirement_extraction", "label": "Requirements", "position": {"x": 150, "y": 0}},
+    {"id": "persona", "label": "Persona", "position": {"x": 300, "y": 0}},
+    {"id": "context_retrieval", "label": "Context", "position": {"x": 450, "y": 0}},
+    {"id": "language_specialist", "label": "Code Gen", "position": {"x": 600, "y": 0}},
+    {"id": "optimization", "label": "Optimization", "position": {"x": 750, "y": 0}},
+    {"id": "code_review", "label": "Review", "position": {"x": 900, "y": 0}},
+    {"id": "security_review", "label": "Security", "position": {"x": 1050, "y": 0}},
+    {"id": "unit_test_generator", "label": "Tests", "position": {"x": 1200, "y": 0}},
+    {"id": "execution", "label": "Execution", "position": {"x": 1350, "y": 0}},
+    {"id": "evaluator", "label": "Evaluator", "position": {"x": 1500, "y": 0}},
+    {"id": "explanation", "label": "Explanation", "position": {"x": 1650, "y": 0}},
+    {"id": "documentation", "label": "Docs", "position": {"x": 1800, "y": 0}},
 ]
 
 WORKFLOW_EDGES: list[dict[str, str]] = [
     {"source": "router", "target": "requirement_extraction"},
     {"source": "requirement_extraction", "target": "persona"},
-    {"source": "persona", "target": "language_specialist"},
-    {"source": "language_specialist", "target": "code_review"},
-    {"source": "code_review", "target": "execution"},
-    {"source": "execution", "target": "explanation"},
+    {"source": "persona", "target": "context_retrieval"},
+    {"source": "context_retrieval", "target": "language_specialist"},
+    {"source": "language_specialist", "target": "optimization"},
+    {"source": "optimization", "target": "code_review"},
+    {"source": "code_review", "target": "security_review"},
+    {"source": "security_review", "target": "unit_test_generator"},
+    {"source": "unit_test_generator", "target": "execution"},
+    {"source": "execution", "target": "evaluator"},
+    {"source": "evaluator", "target": "explanation"},
+    {"source": "evaluator", "target": "language_specialist", "label": "retry"},
+    {"source": "evaluator", "target": "optimization", "label": "retry"},
+    {"source": "explanation", "target": "documentation"},
 ]
 
 

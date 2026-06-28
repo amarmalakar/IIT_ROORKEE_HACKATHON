@@ -105,7 +105,12 @@ pytest tests/ -v
 
 ## Architecture
 
-See [docs/architecture.md](docs/architecture.md) for Mermaid diagrams.
+See [docs/architecture.md](docs/architecture.md) for full Mermaid diagrams including:
+
+- 13-agent system overview with regeneration loop
+- Sequence diagram (LLM vs local agents)
+- State machine with conditional routing
+- Rate limiting strategy
 
 ## License
 

@@ -1,30 +1,33 @@
-"""Agent 11: Evaluator Agent."""
+"""Agent 11: Evaluator Agent — deterministic quality gate (no LLM call)."""
 
 from __future__ import annotations
 
-from backend.agents.base import get_sanitized_code, run_llm_agent
-from backend.models.agent_schemas import EvaluatorOutput
+import time
+
+from backend.agents.base import append_timeline
 from backend.models.state import CodeForgeState
-from backend.utils.helpers import safe_json_dumps, validate_agent_output
+from backend.services.evaluation import evaluate_execution
 
 
 async def evaluator_node(state: CodeForgeState) -> CodeForgeState:
-    def on_success(s: CodeForgeState, response: str) -> CodeForgeState:
-        parsed = validate_agent_output(response, EvaluatorOutput)
-        result = dict(s)
-        result["evaluation"] = parsed.model_dump()
-        if parsed.should_regenerate:
-            result["loop_count"] = s.get("loop_count", 0) + 1
-        return CodeForgeState(**result)
+    """Evaluate execution results deterministically — drives regeneration loop without Groq calls."""
+    start = time.time()
+    agent_name = "evaluator"
 
-    optimization = state.get("optimization_report") or {}
-    variables = {
-        "requirements": safe_json_dumps(state.get("requirements", {})),
-        "persona": state.get("persona", ""),
-        "optimized_code": get_sanitized_code(state),
-        "review_feedback": safe_json_dumps(state.get("review_report", {})),
-        "security_report": safe_json_dumps(state.get("security_report", {})),
-        "execution_result": safe_json_dumps(state.get("execution_result", {})),
-        "complexity_analysis": safe_json_dumps(optimization),
-    }
-    return await run_llm_agent(state, "evaluator", variables, on_success)
+    evaluation = evaluate_execution(state)
+
+    result = dict(state)
+    result["current_agent"] = agent_name
+    result["evaluation"] = evaluation
+
+    if evaluation.get("should_regenerate"):
+        result["loop_count"] = state.get("loop_count", 0) + 1
+
+    duration = int((time.time() - start) * 1000)
+    loop_note = f" [loop {result['loop_count']}]" if evaluation.get("should_regenerate") else ""
+    result["agent_timeline"] = append_timeline(
+        state, agent_name, "completed",
+        f"{evaluation.get('verdict', 'DONE')}: {evaluation.get('evaluation_summary', '')}{loop_note}",
+        duration,
+    )
+    return CodeForgeState(**result)

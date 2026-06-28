@@ -40,8 +40,8 @@ def test_get_workflow():
     response = client.get("/api/workflow")
     assert response.status_code == 200
     data = response.json()
-    assert len(data["nodes"]) == 7
-    assert len(data["edges"]) == 6
+    assert len(data["nodes"]) == 13
+    assert len(data["edges"]) == 14
 
 
 def test_websocket_removed():

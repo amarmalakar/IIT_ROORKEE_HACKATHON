@@ -53,6 +53,45 @@ def get_sanitized_code(state: CodeForgeState) -> str:
     return state.get("optimized_code") or state.get("generated_code") or ""
 
 
+def build_regeneration_feedback(state: CodeForgeState) -> str:
+    """Build prompt context when re-running code generation after test failures."""
+    loop_count = state.get("loop_count", 0)
+    if loop_count == 0:
+        return ""
+
+    exec_result = state.get("execution_result") or {}
+    evaluation = state.get("evaluation") or {}
+    previous_code = get_sanitized_code(state)
+
+    lines = [
+        f"REGENERATION ATTEMPT {loop_count} — previous code failed tests/execution.",
+        "Fix the issues below and produce corrected, runnable code.",
+        "",
+        "## Previous Code",
+        previous_code,
+        "",
+    ]
+
+    stderr = exec_result.get("stderr") or ""
+    if stderr:
+        lines.extend(["## Runtime Error / stderr", stderr, ""])
+
+    failed_tests = evaluation.get("failed_tests") or [
+        tr for tr in exec_result.get("test_results", [])
+        if tr.get("status") in ("failed", "error")
+    ]
+    if failed_tests:
+        lines.append("## Failed Tests")
+        for tr in failed_tests:
+            lines.append(f"- {tr.get('test_name')}: {tr.get('message', tr.get('status'))}")
+        lines.append("")
+
+    for suggestion in evaluation.get("improvement_suggestions", [])[:5]:
+        lines.append(f"- {suggestion.get('suggestion', '')}")
+
+    return "\n".join(lines)
+
+
 async def run_llm_agent(
     state: CodeForgeState,
     agent_name: str,
